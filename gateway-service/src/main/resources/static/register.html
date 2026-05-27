@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>注册 - 图书管理系统</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <a href="/" class="navbar-brand">📚 图书管理系统</a>
+    <ul class="navbar-nav">
+        <li><a href="/">首页</a></li>
+        <li id="nav-user"></li>
+    </ul>
+</nav>
+
+<div class="container">
+    <div class="auth-container">
+        <div class="card">
+            <h2>用户注册</h2>
+            <div id="msg" class="alert"></div>
+            <form id="register-form">
+                <div class="form-group">
+                    <label>用户名 *</label>
+                    <input type="text" class="form-control" id="username" placeholder="3-20 个字符" required>
+                </div>
+                <div class="form-group">
+                    <label>密码 *</label>
+                    <input type="password" class="form-control" id="password" placeholder="至少 6 位" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label>昵称</label>
+                    <input type="text" class="form-control" id="nickname" placeholder="选填">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>邮箱</label>
+                        <input type="email" class="form-control" id="email" placeholder="选填">
+                    </div>
+                    <div class="form-group">
+                        <label>手机号</label>
+                        <input type="text" class="form-control" id="phone" placeholder="选填">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">注 册</button>
+            </form>
+            <div class="auth-footer">
+                已有账号？<a href="/login.html">立即登录</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+document.getElementById('register-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var msg = document.getElementById('msg');
+    msg.style.display = 'none';
+
+    var user = {
+        username: document.getElementById('username').value.trim(),
+        password: document.getElementById('password').value,
+        nickname: document.getElementById('nickname').value.trim(),
+        email:    document.getElementById('email').value.trim(),
+        phone:    document.getElementById('phone').value.trim(),
+    };
+
+    if (!user.username || !user.password) {
+        msg.className = 'alert alert-error';
+        msg.textContent = '用户名和密码为必填项';
+        msg.style.display = 'block';
+        return;
+    }
+    if (user.password.length < 6) {
+        msg.className = 'alert alert-error';
+        msg.textContent = '密码至少 6 位';
+        msg.style.display = 'block';
+        return;
+    }
+
+    var res = await api.register(user);
+    if (res.code === 200) {
+        msg.className = 'alert alert-success';
+        msg.textContent = '注册成功！即将跳转到登录页...';
+        msg.style.display = 'block';
+        setTimeout(function() { window.location.href = '/login.html'; }, 1200);
+    } else {
+        msg.className = 'alert alert-error';
+        msg.textContent = res.message || '注册失败';
+        msg.style.display = 'block';
+    }
+});
+</script>
+</body>
+</html>

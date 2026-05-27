@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 - 图书管理系统</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <a href="/" class="navbar-brand">📚 图书管理系统</a>
+    <ul class="navbar-nav">
+        <li><a href="/">首页</a></li>
+        <li id="nav-user"></li>
+    </ul>
+</nav>
+
+<div class="container">
+    <div class="auth-container">
+        <div class="card">
+            <h2>用户登录</h2>
+            <div id="msg" class="alert"></div>
+            <form id="login-form">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" class="form-control" id="username" placeholder="请输入用户名" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input type="password" class="form-control" id="password" placeholder="请输入密码" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">登 录</button>
+            </form>
+            <div class="auth-footer">
+                还没有账号？<a href="/register.html">立即注册</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+document.getElementById('login-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var msg = document.getElementById('msg');
+    msg.style.display = 'none';
+
+    var username = document.getElementById('username').value.trim();
+    var password = document.getElementById('password').value.trim();
+    if (!username || !password) {
+        msg.className = 'alert alert-error';
+        msg.textContent = '请输入用户名和密码';
+        msg.style.display = 'block';
+        return;
+    }
+
+    var res = await api.login(username, password);
+    if (res.code === 200 && res.data && res.data.token) {
+        Auth.saveLogin(res.data.token, null, username);
+        // 解析 token 获取 userId（简易解析，正式项目应后台返回）
+        try {
+            var payload = JSON.parse(atob(res.data.token.split('.')[1]));
+            if (payload.userId) localStorage.setItem('userId', payload.userId);
+        } catch(e) {}
+        msg.className = 'alert alert-success';
+        msg.textContent = '登录成功，正在跳转...';
+        msg.style.display = 'block';
+        setTimeout(function() {
+            var redirect = new URLSearchParams(location.search).get('redirect') || '/index.html';
+            window.location.href = redirect;
+        }, 800);
+    } else {
+        msg.className = 'alert alert-error';
+        msg.textContent = res.message || '登录失败';
+        msg.style.display = 'block';
+    }
+});
+</script>
+</body>
+</html>

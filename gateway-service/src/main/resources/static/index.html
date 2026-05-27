@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图书管理系统 - 首页</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- 导航栏 -->
+<nav class="navbar">
+    <a href="/" class="navbar-brand">📚 图书管理系统</a>
+    <ul class="navbar-nav">
+        <li><a href="/" class="active">首页</a></li>
+        <li><a href="/books.html">图书列表</a></li>
+        <li><a href="/borrows.html">我的借阅</a></li>
+        <li id="nav-user"></li>
+    </ul>
+</nav>
+
+<div class="container">
+
+    <!-- 欢迎区域 -->
+    <div class="hero">
+        <h1>📖 图书管理系统</h1>
+        <p>基于 Spring Cloud 微服务架构，支持图书浏览、搜索、借阅与归还</p>
+        <div class="btn-group" id="hero-buttons">
+            <a href="/login.html" class="btn btn-primary">登录</a>
+            <a href="/register.html" class="btn btn-outline">注册</a>
+            <a href="/books.html" class="btn btn-outline">浏览图书</a>
+        </div>
+    </div>
+
+    <!-- 统计卡片（登录后显示真实数据） -->
+    <div class="stats-grid" id="stats-grid" style="display:none;">
+        <div class="stat-card">
+            <div class="stat-num" id="stat-books">-</div>
+            <div class="stat-label">馆藏图书</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num" id="stat-borrowing">-</div>
+            <div class="stat-label">借阅中</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num" id="stat-available">-</div>
+            <div class="stat-label">可借图书</div>
+        </div>
+    </div>
+
+    <!-- 快捷入口 -->
+    <div class="card" style="margin-top:20px;">
+        <div class="card-header">快捷功能</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
+            <a href="/books.html" class="btn btn-outline" style="justify-content:center;">📚 浏览全部图书</a>
+            <a href="/borrows.html" class="btn btn-outline" style="justify-content:center;">📋 我的借阅记录</a>
+            <a href="/books.html" class="btn btn-outline" id="btn-quick-borrow" style="justify-content:center;display:none;">📥 借阅图书</a>
+        </div>
+    </div>
+
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+// 如果已登录，加载统计数据
+;(async function() {
+    if (Auth.isLoggedIn()) {
+        document.getElementById('hero-buttons').innerHTML =
+            '<a href="/books.html" class="btn btn-primary">浏览图书</a>' +
+            '<a href="/borrows.html" class="btn btn-outline">我的借阅</a>';
+        document.getElementById('stats-grid').style.display = '';
+        document.getElementById('btn-quick-borrow').style.display = '';
+
+        var booksRes = await api.getBooks();
+        if (booksRes.code === 200 && booksRes.data) {
+            var books = booksRes.data;
+            var total = books.length;
+            var available = 0;
+            books.forEach(function(b) { if (b.stock > 0) available++; });
+            document.getElementById('stat-books').textContent = total;
+            document.getElementById('stat-available').textContent = available;
+        }
+
+        var borrowsRes = await api.getBorrowsByUser(Auth.getUserId());
+        if (borrowsRes.code === 200 && borrowsRes.data) {
+            var borrowing = borrowsRes.data.filter(function(r) { return r.status === 0; }).length;
+            document.getElementById('stat-borrowing').textContent = borrowing;
+        }
+    }
+})();
+</script>
+</body>
+</html>

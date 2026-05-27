@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图书列表 - 图书管理系统</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <a href="/" class="navbar-brand">📚 图书管理系统</a>
+    <ul class="navbar-nav">
+        <li><a href="/">首页</a></li>
+        <li><a href="/books.html" class="active">图书列表</a></li>
+        <li><a href="/borrows.html">我的借阅</a></li>
+        <li id="nav-user"></li>
+    </ul>
+</nav>
+
+<div class="container">
+    <div class="card">
+        <div class="card-header">📚 图书列表</div>
+
+        <!-- 提示信息 -->
+        <div id="msg" class="alert"></div>
+
+        <!-- 搜索框 -->
+        <div class="search-bar">
+            <input type="text" class="form-control" id="search-input" placeholder="输入书名或作者搜索...">
+            <button class="btn btn-primary" id="btn-search">搜索</button>
+            <button class="btn btn-outline" id="btn-clear">显示全部</button>
+        </div>
+
+        <!-- 添加图书（登录用户可见） -->
+        <div id="add-book-section" style="display:none;margin-bottom:20px;">
+            <button class="btn btn-outline btn-sm" id="btn-show-add">＋ 添加新图书</button>
+        </div>
+
+        <!-- 添加图书表单（默认隐藏） -->
+        <div id="add-book-form" class="card" style="display:none;background:#f8fafc;">
+            <div class="card-header">添加新图书</div>
+            <div class="form-row">
+                <div class="form-group"><label>书名 *</label><input class="form-control" id="add-title" required></div>
+                <div class="form-group"><label>作者 *</label><input class="form-control" id="add-author" required></div>
+                <div class="form-group"><label>ISBN *</label><input class="form-control" id="add-isbn" required></div>
+                <div class="form-group"><label>出版社</label><input class="form-control" id="add-publisher"></div>
+                <div class="form-group"><label>分类</label><input class="form-control" id="add-category"></div>
+                <div class="form-group"><label>出版年份</label><input class="form-control" id="add-year" type="number"></div>
+                <div class="form-group"><label>库存数量 *</label><input class="form-control" id="add-stock" type="number" value="1" required></div>
+                <div class="form-group"><label>价格</label><input class="form-control" id="add-price" type="number" step="0.01"></div>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-add-submit">提交</button>
+            <button class="btn btn-outline btn-sm" id="btn-add-cancel">取消</button>
+        </div>
+
+        <!-- 图书列表 -->
+        <div id="book-list">
+            <div class="loading">加载中...</div>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination" id="pagination"></div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+var currentPage = 1;
+var pageSize = 8;
+var currentKeyword = '';
+var allBooks = [];
+
+// 页面初始化
+;(async function init() {
+    if (Auth.isLoggedIn()) {
+        document.getElementById('add-book-section').style.display = '';
+    }
+    await loadBooks();
+    bindEvents();
+})();
+
+async function loadBooks(keyword) {
+    document.getElementById('book-list').innerHTML = '<div class="loading">加载中...</div>';
+
+    var res = keyword ? await api.searchBooks(keyword) : await api.getBooks();
+    if (res.code === 200 && res.data) {
+        allBooks = res.data;
+        currentPage = 1;
+        renderBooks();
+        renderPagination();
+    } else {
+        document.getElementById('book-list').innerHTML =
+            '<div class="empty"><div class="empty-icon">📭</div><p>' + (res.message || '加载失败') + '</p></div>';
+    }
+}
+
+function renderBooks() {
+    var start = (currentPage - 1) * pageSize;
+    var pageBooks = allBooks.slice(start, start + pageSize);
+
+    if (pageBooks.length === 0) {
+        document.getElementById('book-list').innerHTML =
+            '<div class="empty"><div class="empty-icon">📭</div><p>暂无图书</p></div>';
+        return;
+    }
+
+    var html = '<div class="table-wrapper"><table>';
+    html += '<thead><tr><th>ID</th><th>书名</th><th>作者</th><th>ISBN</th><th>分类</th><th>库存</th><th>价格</th><th>操作</th></tr></thead><tbody>';
+
+    pageBooks.forEach(function(b) {
+        var stockHtml = b.stock > 0
+            ? '<span style="color:#22c55e;font-weight:600;">' + b.stock + '</span>'
+            : '<span style="color:#ef4444;">缺货</span>';
+        html += '<tr>';
+        html += '<td>' + b.id + '</td>';
+        html += '<td><strong>' + escapeHtml(b.title) + '</strong></td>';
+        html += '<td>' + escapeHtml(b.author) + '</td>';
+        html += '<td style="font-size:12px;color:#64748b;">' + escapeHtml(b.isbn) + '</td>';
+        html += '<td>' + escapeHtml(b.category || '-') + '</td>';
+        html += '<td>' + stockHtml + '</td>';
+        html += '<td>¥' + (b.price || 0).toFixed(2) + '</td>';
+        html += '<td>';
+        if (b.stock > 0 && Auth.isLoggedIn()) {
+            html += '<button class="btn btn-primary btn-sm" onclick="borrowBook(' + b.id + ')">借阅</button>';
+        } else if (!Auth.isLoggedIn()) {
+            html += '<button class="btn btn-outline btn-sm" onclick="location.href=\'/login.html\'">登录后借阅</button>';
+        } else {
+            html += '<span style="font-size:12px;color:#94a3b8;">暂无库存</span>';
+        }
+        html += '</td></tr>';
+    });
+
+    html += '</tbody></table></div>';
+    document.getElementById('book-list').innerHTML = html;
+}
+
+function renderPagination() {
+    var totalPages = Math.ceil(allBooks.length / pageSize);
+    if (totalPages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+
+    var html = '';
+    html += '<button ' + (currentPage === 1 ? 'disabled' : '') + ' onclick="goPage(' + (currentPage-1) + ')">上一页</button>';
+    for (var i = 1; i <= totalPages; i++) {
+        html += '<button class="' + (i === currentPage ? 'active' : '') + '" onclick="goPage(' + i + ')">' + i + '</button>';
+    }
+    html += '<button ' + (currentPage === totalPages ? 'disabled' : '') + ' onclick="goPage(' + (currentPage+1) + ')">下一页</button>';
+    document.getElementById('pagination').innerHTML = html;
+}
+
+function goPage(page) {
+    currentPage = page;
+    renderBooks();
+    renderPagination();
+    document.getElementById('book-list').scrollIntoView({behavior:'smooth'});
+}
+
+function showMsg(text, type) {
+    var msg = document.getElementById('msg');
+    msg.className = 'alert alert-' + type;
+    msg.textContent = text;
+    msg.style.display = 'block';
+    setTimeout(function() { msg.style.display = 'none'; }, 3000);
+}
+
+async function borrowBook(bookId) {
+    if (!Auth.isLoggedIn()) { location.href = '/login.html'; return; }
+    var userId = Auth.getUserId();
+    if (!userId) { showMsg('无法获取用户信息，请重新登录', 'error'); return; }
+
+    var res = await api.borrowBook(parseInt(userId), bookId);
+    if (res.code === 200) {
+        showMsg('借阅成功！请在「我的借阅」查看', 'success');
+        loadBooks(currentKeyword || null);
+    } else {
+        showMsg(res.message || '借阅失败', 'error');
+    }
+}
+
+function bindEvents() {
+    document.getElementById('btn-search').addEventListener('click', function() {
+        currentKeyword = document.getElementById('search-input').value.trim();
+        loadBooks(currentKeyword || null);
+    });
+    document.getElementById('btn-clear').addEventListener('click', function() {
+        currentKeyword = '';
+        document.getElementById('search-input').value = '';
+        loadBooks();
+    });
+    document.getElementById('search-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('btn-search').click();
+    });
+
+    // 添加图书
+    document.getElementById('btn-show-add').addEventListener('click', function() {
+        document.getElementById('add-book-form').style.display = '';
+    });
+    document.getElementById('btn-add-cancel').addEventListener('click', function() {
+        document.getElementById('add-book-form').style.display = 'none';
+    });
+    document.getElementById('btn-add-submit').addEventListener('click', async function() {
+        var book = {
+            title:       document.getElementById('add-title').value.trim(),
+            author:      document.getElementById('add-author').value.trim(),
+            isbn:        document.getElementById('add-isbn').value.trim(),
+            publisher:   document.getElementById('add-publisher').value.trim(),
+            category:    document.getElementById('add-category').value.trim(),
+            publishYear: parseInt(document.getElementById('add-year').value) || null,
+            stock:       parseInt(document.getElementById('add-stock').value) || 0,
+            price:       parseFloat(document.getElementById('add-price').value) || null,
+        };
+        if (!book.title || !book.author || !book.isbn) {
+            showMsg('书名、作者、ISBN 为必填项', 'error');
+            return;
+        }
+        var res = await api.addBook(book);
+        if (res.code === 200) {
+            showMsg('添加成功', 'success');
+            document.getElementById('add-book-form').style.display = 'none';
+            loadBooks();
+        } else {
+            showMsg(res.message || '添加失败', 'error');
+        }
+    });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

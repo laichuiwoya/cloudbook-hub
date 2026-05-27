@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的借阅 - 图书管理系统</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <a href="/" class="navbar-brand">📚 图书管理系统</a>
+    <ul class="navbar-nav">
+        <li><a href="/">首页</a></li>
+        <li><a href="/books.html">图书列表</a></li>
+        <li><a href="/borrows.html" class="active">我的借阅</a></li>
+        <li id="nav-user"></li>
+    </ul>
+</nav>
+
+<div class="container">
+    <div class="card">
+        <div class="card-header">📋 我的借阅记录</div>
+        <div id="msg" class="alert"></div>
+        <div id="borrow-list">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+// 未登录则跳转
+if (!Auth.isLoggedIn()) {
+    location.href = '/login.html?redirect=/borrows.html';
+}
+
+;(async function init() {
+    await loadBorrows();
+})();
+
+async function loadBorrows() {
+    var userId = Auth.getUserId();
+    if (!userId) {
+        document.getElementById('borrow-list').innerHTML =
+            '<div class="empty"><p>无法获取用户信息，请重新登录</p></div>';
+        return;
+    }
+
+    document.getElementById('borrow-list').innerHTML = '<div class="loading">加载中...</div>';
+
+    // 同时获取借阅记录和图书信息
+    var borrowsRes = await api.getBorrowsByUser(parseInt(userId));
+    if (borrowsRes.code !== 200 || !borrowsRes.data) {
+        document.getElementById('borrow-list').innerHTML =
+            '<div class="empty"><div class="empty-icon">📋</div><p>' + (borrowsRes.message || '暂无借阅记录') + '</p></div>';
+        return;
+    }
+
+    var records = borrowsRes.data;
+    if (records.length === 0) {
+        document.getElementById('borrow-list').innerHTML =
+            '<div class="empty"><div class="empty-icon">📋</div><p>暂无借阅记录，去<a href="/books.html">浏览图书</a>吧</p></div>';
+        return;
+    }
+
+    // 获取每本书的书名
+    var bookNames = {};
+    for (var i = 0; i < records.length; i++) {
+        var bookRes = await api.getBookById(records[i].bookId);
+        if (bookRes.code === 200 && bookRes.data) {
+            bookNames[records[i].bookId] = bookRes.data.title;
+        }
+    }
+
+    var html = '<div class="table-wrapper"><table>';
+    html += '<thead><tr><th>记录ID</th><th>图书</th><th>借阅日期</th><th>应还日期</th><th>归还日期</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+
+    records.forEach(function(r) {
+        var statusHtml = '';
+        if (r.status === 0) statusHtml = '<span class="badge badge-borrowing">借阅中</span>';
+        else if (r.status === 1) statusHtml = '<span class="badge badge-returned">已归还</span>';
+        else if (r.status === 2) statusHtml = '<span class="badge badge-overdue">已逾期</span>';
+
+        var bookName = bookNames[r.bookId] || '图书ID:' + r.bookId;
+
+        html += '<tr>';
+        html += '<td>' + r.id + '</td>';
+        html += '<td><strong>' + escapeHtml(bookName) + '</strong> <span style="font-size:12px;color:#94a3b8;">#' + r.bookId + '</span></td>';
+        html += '<td>' + formatDate(r.borrowDate) + '</td>';
+        html += '<td>' + formatDate(r.dueDate) + '</td>';
+        html += '<td>' + (r.returnDate ? formatDate(r.returnDate) : '-') + '</td>';
+        html += '<td>' + statusHtml + '</td>';
+        html += '<td>';
+        if (r.status === 0) {
+            html += '<button class="btn btn-success btn-sm" onclick="returnBook(' + r.id + ')">归还</button>';
+        } else {
+            html += '<span style="font-size:12px;color:#94a3b8;">已完成</span>';
+        }
+        html += '</td></tr>';
+    });
+
+    html += '</tbody></table></div>';
+    document.getElementById('borrow-list').innerHTML = html;
+}
+
+async function returnBook(borrowId) {
+    if (!confirm('确认归还该图书？')) return;
+
+    var res = await api.returnBook(borrowId);
+    if (res.code === 200) {
+        showMsg('归还成功', 'success');
+        loadBorrows();
+    } else {
+        showMsg(res.message || '归还失败', 'error');
+    }
+}
+
+function showMsg(text, type) {
+    var msg = document.getElementById('msg');
+    msg.className = 'alert alert-' + type;
+    msg.textContent = text;
+    msg.style.display = 'block';
+    setTimeout(function() { msg.style.display = 'none'; }, 3000);
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    return dateStr.replace('T', ' ').substring(0, 16);
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
